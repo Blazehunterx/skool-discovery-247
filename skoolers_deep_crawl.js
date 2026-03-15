@@ -7,7 +7,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const SESSION_PATH = path.join(__dirname, 'skool_session');
+const SESSION_DIR = path.join(__dirname, 'skool_session');
+const STORAGE_STATE_FILE = path.join(__dirname, 'skool_storage_state.json');
 const QUALIFIED_LEADS_FILE = path.join(__dirname, 'skool_qualified_from_skoolers.json');
 
 const REQUIREMENTS = {
@@ -29,10 +30,21 @@ async function deepCrawlSkoolers() {
         qualifiedLeads = JSON.parse(fs.readFileSync(QUALIFIED_LEADS_FILE, 'utf8'));
     }
 
-    const context = await chromium.launchPersistentContext(SESSION_PATH, {
-        headless: false,
-        viewport: { width: 1280, height: 720 }
-    });
+    let context;
+    if (fs.existsSync(STORAGE_STATE_FILE)) {
+        log("Using COMPACT Storage State for authentication...");
+        const browser = await chromium.launch({ headless: false });
+        context = await browser.newContext({
+            storageState: STORAGE_STATE_FILE,
+            viewport: { width: 1280, height: 720 }
+        });
+    } else {
+        log("Using PERSISTENT profile for authentication...");
+        context = await chromium.launchPersistentContext(SESSION_DIR, {
+            headless: false,
+            viewport: { width: 1280, height: 720 }
+        });
+    }
     
     const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
 

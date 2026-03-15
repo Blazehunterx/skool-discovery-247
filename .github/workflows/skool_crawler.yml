@@ -31,17 +31,12 @@ jobs:
         run: |
           # If session is stored as a secret, restore it
           if [ ! -z "$SKOOL_SESSION_BASE64" ]; then
-            echo "Restoring Skool session..."
-            mkdir -p skool_session
-            echo $SKOOL_SESSION_BASE64 | base64 -d > skool_session_archive.tar.gz
-            tar -xzf skool_session_archive.tar.gz -C skool_session
+            echo "Restoring compact Skool session..."
+            echo $SKOOL_SESSION_BASE64 | base64 -d > skool_storage_state.json
           fi
           
           # Run the crawler
           node skoolers_deep_crawl.js
-          
-          # Clean up session archive before committing
-          rm -f skool_session_archive.tar.gz
 
       - name: Commit and Push Leads
         run: |
