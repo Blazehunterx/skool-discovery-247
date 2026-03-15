@@ -21,12 +21,20 @@ function log(msg) {
 function gitPush() {
     log("Starting scheduled Git Push...");
     try {
-        execSync('git add ' + LEADS_FILE + ' daily_report.md sent_leads.json', { cwd: __dirname });
-        execSync('git commit -m "Auto-Save: Persistent Crawler Progress Update"', { cwd: __dirname });
-        execSync('git push origin', { cwd: __dirname });
-        log("SUCCESS: Progress pushed to Git origin.");
+        // Only add files that exist
+        const filesToAdd = ['skool_qualified_from_skoolers.json', 'daily_report.md', 'investigated_members.json'];
+        const existingFiles = filesToAdd.filter(f => fs.existsSync(path.join(__dirname, f)));
+        
+        if (existingFiles.length > 0) {
+            execSync(`git add ${existingFiles.join(' ')}`, { cwd: __dirname });
+            execSync('git commit -m "Auto-Save: Persistent Crawler Progress Update"', { cwd: __dirname });
+            execSync('git push origin main', { cwd: __dirname });
+            log("SUCCESS: Progress pushed to Git origin.");
+        } else {
+            log("No files to push.");
+        }
     } catch (e) {
-        log(`WARNING: Git check-in failed (might be no changes): ${e.message}`);
+        log(`WARNING: Git check-in failed (might be no changes or network issue): ${e.message}`);
     }
 }
 

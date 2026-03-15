@@ -155,17 +155,20 @@ async function deepCrawlSkoolers() {
                     return {
                         name: nameEl ? nameEl.innerText.replace('Owned by ', '').trim() : "Unknown",
                         ig: igLink ? igLink.href : null,
+                        hasIcon: !!igLink,
                         bio: bioText,
                         followers: skoolFollowers,
                         cards
                     };
                 });
 
-                if (!profileInfo.ig) {
+                if (profileInfo.ig) {
+                    log(`>>> EXTRACTED IG FROM ICON: ${profileInfo.ig}`);
+                } else {
                     const igMatch = profileInfo.bio.match(/(?:@|instagram\.com\/)([a-zA-Z0-9._]+)/);
                     if (igMatch && !['explore', 'reels', 'p'].includes(igMatch[1].toLowerCase())) {
                         profileInfo.ig = `https://www.instagram.com/${igMatch[1]}/`;
-                        log(`>>> FOUND IG VIA BIO SCAN: ${profileInfo.ig}`);
+                        log(`>>> EXTRACTED IG FROM BIO: ${profileInfo.ig}`);
                     }
                 }
 
