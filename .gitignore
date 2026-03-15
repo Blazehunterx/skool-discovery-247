@@ -1,0 +1,7 @@
+node_modules/
+skool_session/
+*.log
+skoolers_deep_crawl_log.txt
+skool_session_base64.txt
+.env
+.DS_Store

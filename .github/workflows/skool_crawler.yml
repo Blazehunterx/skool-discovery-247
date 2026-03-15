@@ -1,0 +1,52 @@
+name: Skool 24/7 Lead Discovery
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # Run every 6 hours
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Install Playwright Browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Skool Deep Crawl
+        env:
+          SKOOL_SESSION_BASE64: ${{ secrets.SKOOL_SESSION_BASE64 }}
+        run: |
+          # If session is stored as a secret, restore it
+          if [ ! -z "$SKOOL_SESSION_BASE64" ]; then
+            echo "Restoring Skool session..."
+            mkdir -p skool_session
+            echo $SKOOL_SESSION_BASE64 | base64 -d > skool_session_archive.tar.gz
+            tar -xzf skool_session_archive.tar.gz -C skool_session
+          fi
+          
+          # Run the crawler
+          node skoolers_deep_crawl.js
+          
+          # Clean up session archive before committing
+          rm -f skool_session_archive.tar.gz
+
+      - name: Commit and Push Leads
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add skool_qualified_from_skoolers.json daily_report.md
+          git commit -m "Auto-Save: Lead Discovery Progress (GitHub Actions)" || echo "No changes to commit"
+          git push origin main

@@ -1,0 +1,7 @@
+{
+    "targetUrls": [],
+    "messageTemplate": "Hey {name}. I'm with skoolops.io and was just looking through {community}. Noticed {insight} and wanted to reach out. We are doing a few free retention deep dives for owners this week—mind if I record a quick Loom audit to see if there are any easy wins for your churn? No strings.",
+    "delayMin": 30000,
+    "delayMax": 60000,
+    "minMRR": 5000
+}

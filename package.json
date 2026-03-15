@@ -1,0 +1,17 @@
+{
+  "name": "skool-discovery-autonomous",
+  "version": "1.0.0",
+  "description": "24/7 Autonomous Lead Discovery for Skool Communities",
+  "main": "skool_git_automation.js",
+  "type": "module",
+  "scripts": {
+    "start": "node skool_git_automation.js",
+    "crawl": "node skoolers_deep_crawl.js",
+    "capture": "node capture_skool_session.js"
+  },
+  "dependencies": {
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "playwright": "^1.42.1"
+  }
+}
