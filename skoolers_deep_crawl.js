@@ -38,10 +38,15 @@ async function deepCrawlSkoolers() {
         log(`Loaded ${investigatedMembers.size} previously investigated members to skip.`);
     }
 
+    // Check for GitHub Actions environment to force headless mode
+    const isHeadless = process.env.GITHUB_ACTIONS === 'true' || process.env.HEADLESS === 'true';
+    if (isHeadless) log("Environment: GitHub Actions detected. Running in HEADLESS mode.");
+    else log("Environment: Local detected. Running in HEADFUL mode.");
+
     let context;
     if (fs.existsSync(STORAGE_STATE_FILE)) {
         log("Using COMPACT Storage State for authentication...");
-        const browser = await chromium.launch({ headless: false });
+        const browser = await chromium.launch({ headless: isHeadless });
         context = await browser.newContext({
             storageState: STORAGE_STATE_FILE,
             viewport: { width: 1280, height: 720 }
@@ -49,7 +54,7 @@ async function deepCrawlSkoolers() {
     } else {
         log("Using PERSISTENT profile for authentication...");
         context = await chromium.launchPersistentContext(SESSION_DIR, {
-            headless: false,
+            headless: isHeadless,
             viewport: { width: 1280, height: 720 }
         });
     }
