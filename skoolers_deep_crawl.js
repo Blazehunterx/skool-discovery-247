@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const SESSION_DIR = path.join(__dirname, 'skool_session');
 const STORAGE_STATE_FILE = path.join(__dirname, 'skool_storage_state.json');
 const QUALIFIED_LEADS_FILE = path.join(__dirname, 'skool_qualified_from_skoolers.json');
+const INVESTIGATED_MEMBERS_FILE = path.join(__dirname, 'investigated_members.json');
 
 const REQUIREMENTS = {
     PAID: { MIN_MRR: 3000, MIN_MEMBERS: 75 },
@@ -28,6 +29,13 @@ async function deepCrawlSkoolers() {
     let qualifiedLeads = [];
     if (fs.existsSync(QUALIFIED_LEADS_FILE)) {
         qualifiedLeads = JSON.parse(fs.readFileSync(QUALIFIED_LEADS_FILE, 'utf8'));
+    }
+
+    let investigatedMembers = new Set();
+    if (fs.existsSync(INVESTIGATED_MEMBERS_FILE)) {
+        const data = JSON.parse(fs.readFileSync(INVESTIGATED_MEMBERS_FILE, 'utf8'));
+        investigatedMembers = new Set(data);
+        log(`Loaded ${investigatedMembers.size} previously investigated members to skip.`);
     }
 
     let context;
@@ -67,9 +75,12 @@ async function deepCrawlSkoolers() {
         });
         
         const uniqueMembers = [...new Set(memberLinks)];
-        log(`Found ${uniqueMembers.length} members to investigate.`);
+        log(`Found ${uniqueMembers.length} total links on page.`);
 
-        for (const memberUrl of uniqueMembers) {
+        const toInvestigate = uniqueMembers.filter(url => !investigatedMembers.has(url));
+        log(`Filtering... ${toInvestigate.length} members are NEW and will be investigated.`);
+
+        for (const memberUrl of toInvestigate) {
             log(`\nInvestigating member: ${memberUrl}`);
             try {
                 const memberPage = await context.newPage();
@@ -198,8 +209,16 @@ async function deepCrawlSkoolers() {
                 }
 
                 await memberPage.close();
+                
+                // Track as investigated regardless of result
+                investigatedMembers.add(memberUrl);
+                fs.writeFileSync(INVESTIGATED_MEMBERS_FILE, JSON.stringify([...investigatedMembers], null, 4));
+
             } catch (err) {
                 log(`Error checking member ${memberUrl}: ${err.message}`);
+                // Also track failed ones so we don't loop forever on a broken profile
+                investigatedMembers.add(memberUrl);
+                fs.writeFileSync(INVESTIGATED_MEMBERS_FILE, JSON.stringify([...investigatedMembers], null, 4));
             }
             if (qualifiedLeads.length >= 100) break;
             // Human-like safety delay (4-8 seconds)
