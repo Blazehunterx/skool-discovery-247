@@ -57,21 +57,37 @@ async function deepCrawlSkoolers() {
     const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
 
     try {
-        log("Navigating to Skoolers members list...");
-        await page.goto('https://www.skool.com/skoolers/members', { waitUntil: 'domcontentloaded', timeout: 60000 });
+        log("Navigating to Skoolers community...");
+        await page.goto('https://www.skool.com/skoolers', { waitUntil: 'domcontentloaded', timeout: 60000 });
         await page.waitForTimeout(5000);
 
-        log("Scrolling to gather members (50 pages)...");
-        for (let i = 0; i < 50; i++) {
-            await page.evaluate(() => window.scrollBy(0, 3000));
-            await page.waitForTimeout(1000);
-            if (i % 10 === 0) log(`Scroll progress: ${i}/50`);
+        // Click the Members tab to ensure we are on the grid, not the feed
+        log("Switching to Members tab...");
+        try {
+            await page.click('text=Members', { timeout: 10000 });
+            await page.waitForTimeout(5000);
+        } catch (e) {
+            log("Warning: Could not find 'Members' tab text, attempting direct URL...");
+            await page.goto('https://www.skool.com/skoolers/members', { waitUntil: 'domcontentloaded' });
+            await page.waitForTimeout(5000);
+        }
+
+        log("Scrolling to gather members (70 pages for depth)...");
+        for (let i = 0; i < 70; i++) {
+            await page.evaluate(() => window.scrollBy(0, 4000));
+            await page.waitForTimeout(1500);
+            if (i % 10 === 0) log(`Scroll progress: ${i}/70`);
         }
 
         const memberLinks = await page.evaluate(() => {
+            // Target the specific member cards in the grid
             return Array.from(document.querySelectorAll('a'))
                 .map(a => a.href)
-                .filter(href => href.includes('/@') && !href.includes('/members'));
+                .filter(href => {
+                    const isProfile = href.includes('skool.com/@');
+                    const isRealProfile = isProfile && !href.includes('/members') && !href.includes('/about') && !href.includes('/settings');
+                    return isRealProfile;
+                });
         });
         
         const uniqueMembers = [...new Set(memberLinks)];
