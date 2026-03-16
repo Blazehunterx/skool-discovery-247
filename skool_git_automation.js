@@ -1,15 +1,17 @@
-import { execSync, spawn } from 'child_process';
-import fs from 'fs';
+import { spawn, execSync } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const LOG_FILE = path.join(__dirname, 'git_automation.log');
-const CRAWLER_SCRIPT = 'skoolers_deep_crawl.js';
-const LEADS_FILE = 'skool_qualified_from_skoolers.json';
-const PUSH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const CRAWLER_SCRIPT = path.join(__dirname, 'skoolers_deep_crawl.js');
+const OUTREACH_SCRIPT = path.join(__dirname, '..', 'ig_dm_automation.js');
+const LEADS_FILE = path.join(__dirname, 'skool_qualified_from_skoolers.json');
+const POLLING_INTERVAL_MS = 60 * 1000; // Check state every minute
+const REST_PERIOD_MS = 60 * 60 * 1000; // 1 hour rest after success
 
 function log(msg) {
     const timestamp = new Date().toISOString();
@@ -21,61 +23,70 @@ function log(msg) {
 function gitPush() {
     log("Starting scheduled Git Push...");
     try {
-        // Only add files that exist
-        const filesToAdd = ['skool_qualified_from_skoolers.json', 'daily_report.md', 'investigated_members.json'];
+        const filesToAdd = ['skool_qualified_from_skoolers.json', 'investigated_members.json', 'skool_internal.log'];
         const existingFiles = filesToAdd.filter(f => fs.existsSync(path.join(__dirname, f)));
-        
         if (existingFiles.length > 0) {
-            execSync(`git add ${existingFiles.join(' ')}`, { cwd: __dirname });
-            execSync('git commit -m "Auto-Save: Persistent Crawler Progress Update"', { cwd: __dirname });
-            execSync('git push origin main', { cwd: __dirname });
-            log("SUCCESS: Progress pushed to Git origin.");
-        } else {
-            log("No files to push.");
+            const options = { cwd: __dirname, timeout: 60000 };
+            execSync(`git add ${existingFiles.join(' ')}`, options);
+            execSync('git commit -m "Auto-Save: Factory Progress Update"', options);
+            execSync('git push origin main', options);
+            log("SUCCESS: Progress pushed to Git.");
         }
     } catch (e) {
-        log(`WARNING: Git check-in failed (might be no changes or network issue): ${e.message}`);
+        log(`WARNING: Git check-in failed: ${e.message}`);
     }
 }
 
-async function runCrawler() {
+async function runScript(scriptPath) {
     return new Promise((resolve) => {
-        log(`Launching ${CRAWLER_SCRIPT}...`);
-        const crawler = spawn('node', [CRAWLER_SCRIPT], {
-            cwd: __dirname,
-            stdio: 'inherit'
-        });
-
-        crawler.on('close', (code) => {
-            log(`${CRAWLER_SCRIPT} exited with code ${code}`);
+        log(`Launching ${path.basename(scriptPath)}...`);
+        const child = spawn('node', [scriptPath], { stdio: 'inherit' });
+        child.on('close', (code) => {
+            log(`${path.basename(scriptPath)} finished with code ${code}`);
             resolve(code);
-        });
-
-        crawler.on('error', (err) => {
-            log(`FATAL: Crawler failed to start: ${err.message}`);
-            resolve(1);
         });
     });
 }
 
-async function start() {
-    log("!!! PERSISTENT GIT AUTOMATION STARTED !!!");
-    
-    // Interval for Git Pushing
-    setInterval(gitPush, PUSH_INTERVAL_MS);
+function getLeadCount() {
+    try {
+        if (fs.existsSync(LEADS_FILE)) {
+            const data = JSON.parse(fs.readFileSync(LEADS_FILE, 'utf8'));
+            return Array.isArray(data) ? data.length : 0;
+        }
+    } catch (e) {
+        log(`Error reading leads: ${e.message}`);
+    }
+    return 0;
+}
 
-    // Continuous Loop for Crawling
+async function factoryLoop() {
+    log("!!! THRESHOLD-BASED LEAD FACTORY STARTED !!!");
+    
     while (true) {
-        log("Loop beginning. Checking for work...");
-        await runCrawler();
-        
-        log("Crawler paused or crashed. Waiting 5 minutes for recovery...");
-        gitPush(); // Safety push on crash
-        await new Promise(r => setTimeout(r, 5 * 60 * 1000));
+        log("Checking current lead count...");
+        const count = getLeadCount();
+        log(`Leads in database: ${count}/100`);
+
+        if (count < 100) {
+            log("PHASE 1: DISCOVERY (Discovery Engine actively sifting until 100 leads)");
+            await runScript(CRAWLER_SCRIPT);
+            gitPush();
+        } else {
+            log("PHASE 2: OUTREACH (Threshold reached! Launching IG DMs)");
+            await runScript(OUTREACH_SCRIPT);
+            gitPush();
+            
+            log(`PHASE 3: REST (Cycle complete. Resting for 1 hour as requested)`);
+            await new Promise(r => setTimeout(r, REST_PERIOD_MS));
+        }
+
+        log("Cycle check complete. Waiting for next window...");
+        await new Promise(r => setTimeout(r, POLLING_INTERVAL_MS));
     }
 }
 
-start().catch(e => {
-    log(`CRITICAL ERROR in automation manager: ${e.message}`);
+factoryLoop().catch(err => {
+    log(`FATAL MANAGER ERROR: ${err.message}`);
     process.exit(1);
 });
